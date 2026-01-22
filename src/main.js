@@ -24,11 +24,14 @@ const app = {
 
   init() {
     this.container = document.getElementById('app');
+    this.navLinks = document.querySelector('.nav-links');
+    this.menuToggle = document.getElementById('menu-toggle');
+
     this.bindEvents();
 
-    // Simple hash-based routing on init
-    const initialRoute = window.location.hash.replace('#', '') || 'home';
-    this.navigateTo(initialRoute);
+    // Clean URL routing on init
+    const initialRoute = window.location.pathname.replace('/', '') || 'home';
+    this.renderRoute(initialRoute);
 
     this.initNavbarEffect();
   },
@@ -38,25 +41,42 @@ const app = {
   },
 
   bindEvents() {
+    // Mobile menu toggle
+    if (this.menuToggle) {
+      this.menuToggle.addEventListener('click', () => {
+        this.navLinks.classList.toggle('active');
+        this.menuToggle.classList.toggle('active');
+        document.body.style.overflow = this.navLinks.classList.contains('active') ? 'hidden' : '';
+      });
+    }
+
     // Global click listener for dynamic elements and nav links
     document.body.addEventListener('click', (e) => {
       const routeAttr = e.target.closest('[data-route]');
       if (routeAttr) {
         e.preventDefault();
         const route = routeAttr.getAttribute('data-route');
+
+        // Close mobile menu on navigate
+        if (this.navLinks) {
+          this.navLinks.classList.remove('active');
+          this.menuToggle.classList.remove('active');
+          document.body.style.overflow = '';
+        }
+
         this.navigateTo(route);
       }
     });
 
     window.addEventListener('popstate', (e) => {
-      if (e.state && e.state.route) {
-        this.renderRoute(e.state.route);
-      }
+      const route = window.location.pathname.replace('/', '') || 'home';
+      this.renderRoute(route);
     });
   },
 
   navigateTo(route) {
-    history.pushState({ route }, '', `#${route}`);
+    const path = route === 'home' ? '/' : `/${route}`;
+    history.pushState({ route }, '', path);
     this.renderRoute(route);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
