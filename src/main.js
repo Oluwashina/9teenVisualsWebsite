@@ -391,9 +391,9 @@ function renderAdmin(container) {
           </form>
           
           <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--glass-border);">
-            <h4 style="font-size: 0.8rem; letter-spacing: 0.1em; color: var(--primary-color);">DEVELOPER SYNC</h4>
-            <p style="font-size: 0.7rem; color: var(--text-muted); margin: 0.5rem 0;">Copy this code to update assets.js for permanent storage across all devices.</p>
-            <button class="btn-outline" id="sync-code-btn" style="font-size: 0.7rem; padding: 0.5rem 1rem;">Generate Sync Code</button>
+            <h4 style="font-size: 0.8rem; letter-spacing: 0.1em; color: var(--primary-color);">PORTFOLIO SYNC</h4>
+            <p style="font-size: 0.7rem; color: var(--text-muted); margin: 0.5rem 0;">Click below to save all changes permanently to assets.js.</p>
+            <button class="btn-primary" id="auto-sync-btn" style="font-size: 0.7rem; padding: 0.6rem 1.2rem; width: 100%;">Save to Assets.js</button>
             <textarea id="sync-output" readonly style="display:none; width: 100%; margin-top: 1rem; background: #111; color: #fff; font-family: monospace; font-size: 0.6rem; padding: 0.5rem; border: 1px solid var(--glass-border);"></textarea>
           </div>
         </div>
@@ -460,16 +460,40 @@ function renderAdmin(container) {
     reader.readAsDataURL(file);
   };
 
-  // Sync code generation
-  const syncBtn = container.querySelector('#sync-code-btn');
+  // Automatic Sync to Disk
+  const syncBtn = container.querySelector('#auto-sync-btn');
   const syncOutput = container.querySelector('#sync-output');
 
   if (syncBtn) {
-    syncBtn.onclick = () => {
-      syncOutput.style.display = 'block';
-      const code = `export const portfolioAssets = ${JSON.stringify(app.state.images, null, 2)};`;
-      syncOutput.value = code;
-      syncBtn.textContent = 'Code Generated below';
+    syncBtn.onclick = async () => {
+      syncBtn.textContent = 'Syncing...';
+      try {
+        // Try to hit the local sync server
+        const response = await fetch('http://localhost:3001/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(app.state.images)
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          syncBtn.textContent = '✅ Portfolio Saved Successfully';
+          syncBtn.style.background = '#44ff44';
+          syncBtn.style.color = '#000';
+          setTimeout(() => {
+            syncBtn.textContent = 'Save to Assets.js';
+            syncBtn.style.background = '';
+            syncBtn.style.color = '';
+          }, 3000);
+        } else {
+          throw new Error(result.error);
+        }
+      } catch (err) {
+        console.warn('Auto-sync server offline. Falling back to manual code generation.');
+        syncBtn.textContent = '⚠️ Server Offline - Manual Sync Ready';
+        syncOutput.style.display = 'block';
+        syncOutput.value = `export const portfolioAssets = ${JSON.stringify(app.state.images, null, 2)};`;
+      }
     };
   }
 
