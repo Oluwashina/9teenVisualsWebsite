@@ -1,12 +1,5 @@
 import './style.css';
-
-const DEFAULT_IMAGES = [
-  { id: 'p1', url: '/portrait_1.png', category: 'portrait' },
-  { id: 'p2', url: '/portrait_2.png', category: 'portrait' },
-  { id: 'p3', url: '/portrait_3.png', category: 'portrait' },
-  { id: 'e1', url: '/event_1.png', category: 'event' },
-  { id: 'e2', url: '/event_2.png', category: 'event' },
-];
+import { portfolioAssets } from './assets.js';
 
 const app = {
   routes: {
@@ -19,7 +12,7 @@ const app = {
   },
 
   state: {
-    images: JSON.parse(localStorage.getItem('photography_portfolio_images')) || DEFAULT_IMAGES
+    images: JSON.parse(localStorage.getItem('photography_portfolio_images')) || portfolioAssets
   },
 
   init() {
@@ -396,6 +389,13 @@ function renderAdmin(container) {
             </div>
             <div id="upload-status" style="margin-top: 10px; font-size: 0.8rem; color: var(--text-muted);"></div>
           </form>
+          
+          <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--glass-border);">
+            <h4 style="font-size: 0.8rem; letter-spacing: 0.1em; color: var(--primary-color);">DEVELOPER SYNC</h4>
+            <p style="font-size: 0.7rem; color: var(--text-muted); margin: 0.5rem 0;">Copy this code to update assets.js for permanent storage across all devices.</p>
+            <button class="btn-outline" id="sync-code-btn" style="font-size: 0.7rem; padding: 0.5rem 1rem;">Generate Sync Code</button>
+            <textarea id="sync-output" readonly style="display:none; width: 100%; margin-top: 1rem; background: #111; color: #fff; font-family: monospace; font-size: 0.6rem; padding: 0.5rem; border: 1px solid var(--glass-border);"></textarea>
+          </div>
         </div>
 
         <div class="admin-assets-card">
@@ -459,6 +459,19 @@ function renderAdmin(container) {
     };
     reader.readAsDataURL(file);
   };
+
+  // Sync code generation
+  const syncBtn = container.querySelector('#sync-code-btn');
+  const syncOutput = container.querySelector('#sync-output');
+
+  if (syncBtn) {
+    syncBtn.onclick = () => {
+      syncOutput.style.display = 'block';
+      const code = `export const portfolioAssets = ${JSON.stringify(app.state.images, null, 2)};`;
+      syncOutput.value = code;
+      syncBtn.textContent = 'Code Generated below';
+    };
+  }
 
   assetsList.onclick = (e) => {
     if (e.target.classList.contains('btn-delete')) {
