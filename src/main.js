@@ -12,7 +12,8 @@ const app = {
   },
 
   state: {
-    images: JSON.parse(localStorage.getItem('photography_portfolio_images')) || portfolioAssets
+    images: portfolioAssets || JSON.parse(localStorage.getItem('photography_portfolio_images')),
+    authenticated: sessionStorage.getItem('9teen_admin_auth') === 'true'
   },
 
   init() {
@@ -90,14 +91,61 @@ const app = {
   initNavbarEffect() {
     const navbar = document.getElementById('navbar');
     window.addEventListener('scroll', () => {
-      if (window.scrollY > 50) {
-        navbar.classList.add('scrolled');
-      } else {
-        navbar.classList.remove('scrolled');
+      if (navbar) {
+        navbar.classList.toggle('scrolled', window.scrollY > 50);
       }
     });
   }
 };
+const PRICING_DATA = {
+  portrait: [
+    { name: 'Single Look', price: '30,000', features: ['1 look/outfit', '5 edited soft copies'], popular: false },
+    { name: 'Double Look', price: '55,000', features: ['2 looks/outfit', '10 edited soft copies'], popular: false },
+    { name: 'Triple Look', price: '90,000', features: ['3 looks/outfit', '15 edited soft copies'], popular: true },
+    { name: 'Quad Look', price: '110,000', features: ['4 looks/outfit', '20 edited soft copies'], popular: false },
+    { name: 'Premium Look', price: '130,000', features: ['5 looks/outfit', '20 edited soft copies'], popular: false },
+  ],
+  event: [
+    { name: 'Basic Package', price: '400,000', features: ['1 photographer', 'Engagement shoot (1-2 hours)', 'Reception coverage (6-8 hours)'], popular: false },
+    { name: 'Standard Package', price: '700,000', features: ['1 main photographer + 1 assistant', 'Engagement shoot (2-3 hours)', 'Reception coverage (8-10 hours)'], popular: true },
+    { name: 'Premium Package', price: '1,200,000', features: ['2 photographers + 1 assistant', 'Full day concept shoot', 'Unlimited event coverage'], popular: false },
+  ],
+  baby: [
+    { name: 'Newborn Basic', price: '45,000', features: ['Mini session', '5 edited soft copies', 'Family posing included'], popular: false },
+    { name: 'Essential Pack', price: '75,000', features: ['Full session', '12 edited soft copies', 'Custom theme'], popular: true },
+    { name: 'Grow with Me', price: '150,000', features: ['3 sessions (Newborn, 6mo, 1yr)', '30 total copies', 'Photo album'], popular: false }
+  ]
+};
+
+function renderPricingCards(category) {
+  const packs = PRICING_DATA[category] || [];
+  return `
+    <div class="pricing-container container">
+      <div class="section-header text-center" style="margin-top: var(--spacing-xl)">
+        <span class="section-tagline">Packages</span>
+        <h2>Investment & Plans</h2>
+      </div>
+      <div class="pricing-grid">
+        ${packs.map(pkg => `
+          <div class="pricing-card ${pkg.popular ? 'popular' : ''}">
+            ${pkg.popular ? '<div class="popular-badge">Most Popular</div>' : ''}
+            <div class="pricing-header">
+              <h3>${pkg.name}</h3>
+              <div class="price">
+                <span class="currency">₦</span>
+                <span class="amount">${pkg.price}</span>
+              </div>
+            </div>
+            <ul class="pricing-features">
+              ${pkg.features.map(f => `<li><span class="check">✓</span> ${f}</li>`).join('')}
+            </ul>
+            <button class="btn-primary select-pkg" data-route="booking" data-pkg="${pkg.name}">Select Package</button>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
 
 window.app = app;
 
@@ -194,10 +242,10 @@ function renderHome(container) {
       <div class="preview-header">
         <div>
           <span class="section-tagline">Portfolios</span>
-          <h2 class="text-accent">Portraiture</h2>
+          <h2 class="text-accent">Portraits</h2>
           <p style="color: var(--text-muted)">Elegance and character, captured in every frame.</p>
         </div>
-        <button class="btn-outline" data-route="portraits">Full Gallery</button>
+        <button class="btn-outline" data-route="portraits" style="margin-top: 20px; margin-bottom: 20px">Full Gallery</button>
       </div>
       <div class="gallery-grid">
         ${portraits.slice(0, 3).map((img, i) => `
@@ -248,9 +296,7 @@ function renderPortraits(container) {
           <div class="gallery-item"><img src="${img.url}" alt="Portrait"></div>
         `).join('')}
       </div>
-      <div class="text-center" style="margin-top: var(--spacing-lg)">
-        <button class="btn-primary" data-route="booking">Book Portrait Session</button>
-      </div>
+      ${renderPricingCards('portrait')}
     </section>
   `;
 }
@@ -269,9 +315,7 @@ function renderBabies(container) {
           <div class="gallery-item"><img src="${img.url}" alt="Baby Picture"></div>
         `).join('') : '<p style="grid-column: 1/-1; text-align: center; opacity: 0.5;">No baby pictures in the gallery yet. Check back soon!</p>'}
       </div>
-      <div class="text-center" style="margin-top: var(--spacing-lg)">
-        <button class="btn-primary" data-route="booking">Book a Baby Session</button>
-      </div>
+      ${renderPricingCards('baby')}
     </section>
   `;
 }
@@ -290,9 +334,7 @@ function renderEvents(container) {
           <div class="gallery-item"><img src="${img.url}" alt="Event"></div>
         `).join('')}
       </div>
-      <div class="text-center" style="margin-top: var(--spacing-lg)">
-        <button class="btn-primary" data-route="booking">Inquire for Event Coverage</button>
-      </div>
+      ${renderPricingCards('event')}
     </section>
   `;
 }
@@ -362,11 +404,60 @@ function renderBooking(container) {
 }
 
 function renderAdmin(container) {
+  if (!app.state.authenticated) {
+    container.innerHTML = `
+      <section class="section container gallery-page">
+        <div class="gallery-page-header text-center" style="margin: 4rem auto">
+          <span class="section-tagline">Secure Access</span>
+          <h1>Admin Login</h1>
+          <p>Please enter your credentials to manage visual assets.</p>
+        </div>
+        <div class="admin-login-card" style="max-width: 400px; margin: 0 auto; background: var(--glass-bg); padding: 2rem; border: 1px solid var(--glass-border); border-radius: 8px;">
+          <form id="admin-login-form" class="booking-form">
+            <div class="form-group">
+              <label>Username</label>
+              <input type="text" id="admin-user" placeholder="Enter your username" required>
+            </div>
+            <div class="form-group">
+              <label>Password</label>
+              <input type="password" id="admin-pass" placeholder="Enter your password" required>
+            </div>
+            <button type="submit" class="btn-primary" style="width: 100%">Enter Dashboard</button>
+            <div id="login-error" style="color: #ff4444; font-size: 0.8rem; margin-top: 1rem; text-align: center; display: none;">Invalid credentials.</div>
+          </form>
+        </div>
+      </section>
+    `;
+
+    const form = container.querySelector('#admin-login-form');
+    const errorDiv = container.querySelector('#login-error');
+
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const user = container.querySelector('#admin-user').value;
+      const pass = container.querySelector('#admin-pass').value;
+
+      if (user === 'ayomide25' && pass === 'Iyanuoluwa25') {
+        app.state.authenticated = true;
+        sessionStorage.setItem('9teen_admin_auth', 'true');
+        renderAdmin(container);
+      } else {
+        errorDiv.style.display = 'block';
+      }
+    };
+    return;
+  }
+
   container.innerHTML = `
     <section class="section container gallery-page admin-page">
       <div class="gallery-page-header">
-        <span class="section-tagline">Internal Use Only</span>
-        <h1>Portfolio Manager</h1>
+        <div class="flex-between">
+          <div>
+            <span class="section-tagline">Internal Use Only</span>
+            <h1>Portfolio Manager</h1>
+          </div>
+          <button class="btn-outline logout-btn" id="logout-btn" style="font-size: 0.7rem; padding: 0.5rem 1rem;">Logout</button>
+        </div>
         <p>Update your public galleries and manage visual assets.</p>
       </div>
 
@@ -505,6 +596,15 @@ function renderAdmin(container) {
       updateAssetsList();
     }
   };
+
+  const logoutBtn = container.querySelector('#logout-btn');
+  if (logoutBtn) {
+    logoutBtn.onclick = () => {
+      app.state.authenticated = false;
+      sessionStorage.removeItem('9teen_admin_auth');
+      renderAdmin(container);
+    };
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => app.init());
