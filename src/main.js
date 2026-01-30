@@ -99,16 +99,14 @@ const app = {
 };
 const PRICING_DATA = {
   portrait: [
-    { name: 'Single Look', price: '30,000', features: ['1 look/outfit', '5 edited soft copies'], popular: false },
-    { name: 'Double Look', price: '55,000', features: ['2 looks/outfit', '10 edited soft copies'], popular: false },
-    { name: 'Triple Look', price: '90,000', features: ['3 looks/outfit', '15 edited soft copies'], popular: true },
-    { name: 'Quad Look', price: '110,000', features: ['4 looks/outfit', '20 edited soft copies'], popular: false },
-    { name: 'Premium Look', price: '130,000', features: ['5 looks/outfit', '20 edited soft copies'], popular: false },
+    { name: 'Single Look', price: '45,000', features: ['1 look/outfit', '1 backdrop', '4 edited soft copies'], popular: false },
+    { name: 'Double Look', price: '60,000', features: ['2-3 looks/outfit', '2 backdrops', '8 edited soft copies'], popular: false },
+    { name: 'Premium Look', price: '150,000', features: ['5 looks/outfit', '20 edited soft copies'], popular: false },
   ],
   event: [
-    { name: 'Basic Package', price: '400,000', features: ['1 photographer', 'Engagement shoot (1-2 hours)', 'Reception coverage (6-8 hours)'], popular: false },
-    { name: 'Standard Package', price: '700,000', features: ['1 main photographer + 1 assistant', 'Engagement shoot (2-3 hours)', 'Reception coverage (8-10 hours)'], popular: true },
-    { name: 'Premium Package', price: '1,200,000', features: ['2 photographers + 1 assistant', 'Full day concept shoot', 'Unlimited event coverage'], popular: false },
+    { name: 'Pure Moments', price: '500,000', features: ['2 photographers', 'A medium size synthetic photobook', 'A medium size frame', 'High resolution image of the events'], popular: false },
+    { name: 'Sweet Love', price: '700,000', features: ['2 photographers', 'A large size synthetic photobook', 'A big size frame','High resolution image of the events', 'Complimentary pre-wedding (3 outfits)'], popular: true },
+    { name: 'Sweet Beginnings', price: '900,000', features: ['3 photographers', 'A very large size synthetic photobook', 'A large size frame', 'High resolution image of the events', 'Complimentary pre-wedding (4 outfits)'], popular: false },
   ],
   baby: [
     { name: 'Newborn Basic', price: '45,000', features: ['Mini session', '5 edited soft copies', 'Family posing included'], popular: false },
