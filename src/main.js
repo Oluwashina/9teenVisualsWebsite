@@ -99,9 +99,9 @@ const app = {
 };
 const PRICING_DATA = {
   portrait: [
-    { name: 'Single Look', price: '45,000', features: ['1 look/outfit', '1 backdrop', '4 edited soft copies'], popular: false },
-    { name: 'Double Look', price: '60,000', features: ['2-3 looks/outfit', '2 backdrops', '8 edited soft copies'], popular: false },
-    { name: 'Premium Look', price: '150,000', features: ['5 looks/outfit', '20 edited soft copies'], popular: false },
+    { name: 'Basic', price: '45,000', features: ['1 look/outfit', '1 backdrop', '4 edited soft copies'], popular: false },
+    { name: 'Standard', price: '60,000', features: ['2-3 looks/outfit', '2 backdrops', '8 edited soft copies'], popular: false },
+    { name: 'Premium', price: '150,000', features: ['5 looks/outfit', '20 edited soft copies'], popular: false },
   ],
   event: [
     { name: 'Pure Moments', price: '500,000', features: ['2 photographers', 'A medium size synthetic photobook', 'A medium size frame', 'High resolution image of the events'], popular: false },
