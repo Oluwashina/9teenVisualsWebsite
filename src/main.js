@@ -1,5 +1,10 @@
 import './style.css';
-import { portfolioAssets } from './assets.js';
+
+const CATEGORIES = [
+  { key: 'portrait', label: 'Portraits' },
+  { key: 'event', label: 'Events' },
+  { key: 'baby', label: 'Baby Pictures' },
+];
 
 const app = {
   routes: {
@@ -12,26 +17,39 @@ const app = {
   },
 
   state: {
-    images: portfolioAssets || JSON.parse(localStorage.getItem('photography_portfolio_images')),
+    images: [],
+    portfolioLoading: true,
+    portfolioError: null,
     authenticated: sessionStorage.getItem('9teen_admin_auth') === 'true'
   },
 
-  init() {
+  async init() {
     this.container = document.getElementById('app');
     this.navLinks = document.querySelector('.nav-links');
     this.menuToggle = document.getElementById('menu-toggle');
 
     this.bindEvents();
+    this.container.innerHTML = '<div class="portfolio-loading"><span>Loading portfolio...</span></div>';
 
-    // Clean URL routing on init
+    await this.loadPortfolio();
+
     const initialRoute = window.location.pathname.replace('/', '') || 'home';
     this.renderRoute(initialRoute);
-
     this.initNavbarEffect();
   },
 
-  saveState() {
-    localStorage.setItem('photography_portfolio_images', JSON.stringify(this.state.images));
+  async loadPortfolio() {
+    this.state.portfolioLoading = true;
+    this.state.portfolioError = null;
+    try {
+      this.state.images = await fetchPortfolio();
+    } catch (err) {
+      console.error('Failed to load portfolio:', err);
+      this.state.portfolioError = err.message;
+      this.state.images = [];
+    } finally {
+      this.state.portfolioLoading = false;
+    }
   },
 
   bindEvents() {
@@ -146,6 +164,180 @@ function renderPricingCards(category) {
 }
 
 window.app = app;
+
+const CLOUDINARY_CLOUD = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+async function fetchPortfolio() {
+  const response = await fetch('/api/portfolio');
+  const contentType = response.headers.get('content-type') || '';
+
+  if (!contentType.includes('application/json')) {
+    throw new Error(
+      'Portfolio API is unavailable. Run npm run dev locally, or check Netlify env vars on your deployed site.'
+    );
+  }
+
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Failed to load portfolio');
+  return data.images || [];
+}
+
+async function deletePortfolioImage(publicId) {
+  const response = await fetch('/api/portfolio', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ publicId }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Failed to delete image');
+}
+
+async function uploadToCloudinary(file, category) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', CLOUDINARY_PRESET);
+  formData.append('folder', `9teen-visuals/${category}`);
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
+    { method: 'POST', body: formData }
+  );
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error?.message || 'Cloudinary upload failed');
+  }
+
+  return {
+    id: data.public_id.split('/').pop(),
+    publicId: data.public_id,
+    url: data.secure_url,
+    category,
+  };
+}
+
+function renderAdminStats(images) {
+  const counts = CATEGORIES.map((cat) => ({
+    ...cat,
+    count: images.filter((img) => img.category === cat.key).length,
+  }));
+
+  return `
+    <div class="admin-stats">
+      ${counts.map((cat) => `
+        <div class="admin-stat-pill">
+          <span class="admin-stat-label">${cat.label}</span>
+          <span class="admin-stat-value">${cat.count}</span>
+        </div>
+      `).join('')}
+      <div class="admin-stat-pill admin-stat-total">
+        <span class="admin-stat-label">Total</span>
+        <span class="admin-stat-value">${images.length}</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderAdminCategorySection(categoryKey, label, images) {
+  const items = images.filter((img) => img.category === categoryKey);
+
+  return `
+    <section class="admin-category-section">
+      <div class="admin-category-header">
+        <h3>${label}</h3>
+        <span class="admin-category-count">${items.length} image${items.length !== 1 ? 's' : ''}</span>
+      </div>
+      ${items.length === 0 ? `
+        <p class="admin-empty-category">No ${label.toLowerCase()} uploaded yet.</p>
+      ` : `
+        <div class="admin-assets-list">
+          ${items.map((img) => `
+            <div class="admin-asset-item">
+              <img src="${img.url}" alt="${label}">
+              <div class="asset-info">
+                <button class="btn-delete" data-public-id="${img.publicId}">Remove</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    </section>
+  `;
+}
+
+function bindAdminEvents(container) {
+  const dropZone = container.querySelector('#admin-drop-zone');
+  const fileInput = container.querySelector('#admin-file-input');
+  const categorySelect = container.querySelector('#upload-category');
+  const statusDiv = container.querySelector('#upload-status');
+  const refreshBtn = container.querySelector('#refresh-portfolio-btn');
+
+  dropZone.onclick = () => fileInput.click();
+
+  fileInput.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    statusDiv.textContent = 'Uploading to Cloudinary...';
+    statusDiv.style.color = 'var(--text-muted)';
+
+    try {
+      await uploadToCloudinary(file, categorySelect.value);
+      await app.loadPortfolio();
+      renderAdmin(container);
+      statusDiv.textContent = `Success! Image added to ${categorySelect.value} gallery.`;
+      statusDiv.style.color = '#44ff44';
+      fileInput.value = '';
+    } catch (err) {
+      statusDiv.textContent = 'Upload failed: ' + err.message;
+      statusDiv.style.color = '#ff4444';
+    }
+
+    setTimeout(() => {
+      statusDiv.textContent = '';
+      statusDiv.style.color = 'var(--text-muted)';
+    }, 5000);
+  };
+
+  container.querySelectorAll('.btn-delete').forEach((btn) => {
+    btn.onclick = async () => {
+      const publicId = btn.getAttribute('data-public-id');
+      if (!publicId || !confirm('Remove this image from Cloudinary and the live site?')) return;
+
+      btn.textContent = 'Removing...';
+      btn.disabled = true;
+
+      try {
+        await deletePortfolioImage(publicId);
+        await app.loadPortfolio();
+        renderAdmin(container);
+      } catch (err) {
+        btn.textContent = 'Remove';
+        btn.disabled = false;
+        alert('Delete failed: ' + err.message);
+      }
+    };
+  });
+
+  if (refreshBtn) {
+    refreshBtn.onclick = async () => {
+      refreshBtn.textContent = 'Refreshing...';
+      refreshBtn.disabled = true;
+      await app.loadPortfolio();
+      renderAdmin(container);
+    };
+  }
+
+  const logoutBtn = container.querySelector('#logout-btn');
+  if (logoutBtn) {
+    logoutBtn.onclick = () => {
+      app.state.authenticated = false;
+      sessionStorage.removeItem('9teen_admin_auth');
+      renderAdmin(container);
+    };
+  }
+}
 
 function renderHome(container) {
   // Use a mix of portraits and events for the hero and preview
@@ -446,6 +638,14 @@ function renderAdmin(container) {
     return;
   }
 
+  if (app.state.portfolioLoading) {
+    container.innerHTML = '<div class="portfolio-loading"><span>Loading portfolio from Cloudinary...</span></div>';
+    app.loadPortfolio().then(() => renderAdmin(container));
+    return;
+  }
+
+  const images = app.state.images;
+
   container.innerHTML = `
     <section class="section container gallery-page admin-page">
       <div class="gallery-page-header">
@@ -454,155 +654,43 @@ function renderAdmin(container) {
             <span class="section-tagline">Internal Use Only</span>
             <h1>Portfolio Manager</h1>
           </div>
-          <button class="btn-outline logout-btn" id="logout-btn" style="font-size: 0.7rem; padding: 0.5rem 1rem;">Logout</button>
+          <div class="admin-header-actions">
+            <button class="btn-outline" id="refresh-portfolio-btn" style="font-size: 0.7rem; padding: 0.5rem 1rem;">Refresh</button>
+            <button class="btn-outline logout-btn" id="logout-btn" style="font-size: 0.7rem; padding: 0.5rem 1rem;">Logout</button>
+          </div>
         </div>
-        <p>Update your public galleries and manage visual assets.</p>
+        <p>Manage your Cloudinary portfolio. Uploads and removals sync instantly to the live site.</p>
+        ${app.state.portfolioError ? `<p class="admin-error-banner">Could not load portfolio: ${app.state.portfolioError}</p>` : ''}
       </div>
 
-      <div class="admin-grid">
-        <div class="admin-form-card">
-          <h3>Add New Image</h3>
-          <form id="admin-upload-form" class="booking-form">
-            <div class="form-group">
-              <label>Category</label>
-              <select id="upload-category">
-                <option value="portrait">Portrait</option>
-                <option value="event">Event</option>
-                <option value="baby">Baby Picture</option>
-              </select>
-            </div>
-            <div class="upload-area" id="admin-drop-zone">
-              <div class="upload-icon">↑</div>
-              <p>Click to upload image</p>
-              <input type="file" id="admin-file-input" accept="image/*" style="display: none;">
-            </div>
-            <div id="upload-status" style="margin-top: 10px; font-size: 0.8rem; color: var(--text-muted);"></div>
-          </form>
-          
-          <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--glass-border);">
-            <h4 style="font-size: 0.8rem; letter-spacing: 0.1em; color: var(--primary-color);">PORTFOLIO SYNC</h4>
-            <p style="font-size: 0.7rem; color: var(--text-muted); margin: 0.5rem 0;">Click below to save all changes permanently to assets.js.</p>
-            <button class="btn-primary" id="auto-sync-btn" style="font-size: 0.7rem; padding: 0.6rem 1.2rem; width: 100%;">Save to Assets.js</button>
-            <textarea id="sync-output" readonly style="display:none; width: 100%; margin-top: 1rem; background: #111; color: #fff; font-family: monospace; font-size: 0.6rem; padding: 0.5rem; border: 1px solid var(--glass-border);"></textarea>
-          </div>
-        </div>
+      ${renderAdminStats(images)}
 
-        <div class="admin-assets-card">
-          <div class="flex-between">
-            <h3>Current Assets</h3>
-            <span id="asset-count" class="asset-category"></span>
+      <div class="admin-upload-panel">
+        <h3>Upload New Image</h3>
+        <form id="admin-upload-form" class="booking-form admin-upload-form">
+          <div class="form-group">
+            <label>Category</label>
+            <select id="upload-category">
+              ${CATEGORIES.map((cat) => `<option value="${cat.key}">${cat.label}</option>`).join('')}
+            </select>
           </div>
-          <div class="admin-assets-list" id="admin-assets-list">
-            <!-- Asset items will be rendered here -->
+          <div class="upload-area" id="admin-drop-zone">
+            <div class="upload-icon">↑</div>
+            <p>Click to upload image</p>
+            <span class="upload-hint">JPEG, PNG, or WebP · max 10MB on free plan</span>
+            <input type="file" id="admin-file-input" accept="image/*" style="display: none;">
           </div>
-        </div>
+          <div id="upload-status" class="upload-status"></div>
+        </form>
+      </div>
+
+      <div class="admin-categories">
+        ${CATEGORIES.map((cat) => renderAdminCategorySection(cat.key, cat.label, images)).join('')}
       </div>
     </section>
   `;
 
-  const dropZone = container.querySelector('#admin-drop-zone');
-  const fileInput = container.querySelector('#admin-file-input');
-  const categorySelect = container.querySelector('#upload-category');
-  const statusDiv = container.querySelector('#upload-status');
-  const assetsList = container.querySelector('#admin-assets-list');
-
-  const assetCount = container.querySelector('#asset-count');
-
-  const updateAssetsList = () => {
-    assetCount.textContent = `${app.state.images.length} TOTAL ASSETS`;
-    assetsList.innerHTML = app.state.images.map(img => `
-      <div class="admin-asset-item">
-        <img src="${img.url}" alt="Preview">
-        <div class="asset-info">
-          <span class="asset-category">${img.category}</span>
-          <button class="btn-delete" data-id="${img.id}">Remove</button>
-        </div>
-      </div>
-    `).join('');
-  };
-
-  updateAssetsList();
-
-  dropZone.onclick = () => fileInput.click();
-
-  fileInput.onchange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    statusDiv.textContent = 'Uploading...';
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const newImage = {
-        id: Date.now().toString(),
-        url: event.target.result,
-        category: categorySelect.value
-      };
-
-      app.state.images.push(newImage);
-      app.saveState();
-      updateAssetsList();
-      statusDiv.textContent = 'Success! Image added to ' + newImage.category + ' gallery.';
-
-      setTimeout(() => { statusDiv.textContent = ''; }, 3000);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Automatic Sync to Disk
-  const syncBtn = container.querySelector('#auto-sync-btn');
-  const syncOutput = container.querySelector('#sync-output');
-
-  if (syncBtn) {
-    syncBtn.onclick = async () => {
-      syncBtn.textContent = 'Syncing...';
-      try {
-        // Try to hit the local sync server
-        const response = await fetch('http://localhost:3001/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(app.state.images)
-        });
-
-        const result = await response.json();
-        if (result.success) {
-          syncBtn.textContent = '✅ Portfolio Saved Successfully';
-          syncBtn.style.background = '#44ff44';
-          syncBtn.style.color = '#000';
-          setTimeout(() => {
-            syncBtn.textContent = 'Save to Assets.js';
-            syncBtn.style.background = '';
-            syncBtn.style.color = '';
-          }, 3000);
-        } else {
-          throw new Error(result.error);
-        }
-      } catch (err) {
-        console.warn('Auto-sync server offline. Falling back to manual code generation.');
-        syncBtn.textContent = '⚠️ Server Offline - Manual Sync Ready';
-        syncOutput.style.display = 'block';
-        syncOutput.value = `export const portfolioAssets = ${JSON.stringify(app.state.images, null, 2)};`;
-      }
-    };
-  }
-
-  assetsList.onclick = (e) => {
-    if (e.target.classList.contains('btn-delete')) {
-      const id = e.target.getAttribute('data-id');
-      app.state.images = app.state.images.filter(img => img.id !== id);
-      app.saveState();
-      updateAssetsList();
-    }
-  };
-
-  const logoutBtn = container.querySelector('#logout-btn');
-  if (logoutBtn) {
-    logoutBtn.onclick = () => {
-      app.state.authenticated = false;
-      sessionStorage.removeItem('9teen_admin_auth');
-      renderAdmin(container);
-    };
-  }
+  bindAdminEvents(container);
 }
 
 document.addEventListener('DOMContentLoaded', () => app.init());

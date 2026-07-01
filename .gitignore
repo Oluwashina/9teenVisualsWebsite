@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+src/assets.base64.backup.js
 
 # Editor directories and files
 .vscode/*
