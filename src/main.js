@@ -174,6 +174,35 @@ function readFileAsDataUrl(file) {
   });
 }
 
+async function compressImageForUpload(file, maxBytes = 3 * 1024 * 1024) {
+  if (file.size <= maxBytes) {
+    return readFileAsDataUrl(file);
+  }
+
+  const bitmap = await createImageBitmap(file);
+  const maxDimension = 2400;
+  const scale = Math.min(1, maxDimension / bitmap.width, maxDimension / bitmap.height);
+  const width = Math.round(bitmap.width * scale);
+  const height = Math.round(bitmap.height * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+
+  let quality = 0.85;
+  let blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+
+  while (blob && blob.size > maxBytes && quality > 0.5) {
+    quality -= 0.1;
+    blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+  }
+
+  if (!blob) throw new Error('Could not compress image');
+  return readFileAsDataUrl(blob);
+}
+
 async function fetchPortfolio() {
   const response = await fetch('/api/portfolio');
   const contentType = response.headers.get('content-type') || '';
@@ -200,13 +229,22 @@ async function deletePortfolioImage(publicId) {
 }
 
 async function uploadToCloudinary(file, category) {
-  const dataUrl = await readFileAsDataUrl(file);
+  const dataUrl = await compressImageForUpload(file);
 
   const response = await fetch('/api/portfolio', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ category, file: dataUrl }),
   });
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(
+      response.status === 413
+        ? 'Image is too large for upload. Try a smaller file.'
+        : `Upload failed (${response.status}). Check Netlify function logs.`
+    );
+  }
 
   const data = await response.json();
   if (!response.ok) {

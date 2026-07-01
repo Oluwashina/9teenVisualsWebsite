@@ -5,6 +5,10 @@
 
 [functions]
   node_bundler = "esbuild"
+  external_node_modules = ["cloudinary"]
+
+[functions.portfolio]
+  timeout = 26
 
 [[redirects]]
   from = "/api/portfolio"

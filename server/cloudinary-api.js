@@ -1,5 +1,4 @@
 import { v2 as cloudinary } from 'cloudinary';
-import sharp from 'sharp';
 
 const CATEGORIES = ['portrait', 'event', 'baby'];
 const BASE_FOLDER = '9teen-visuals';
@@ -55,18 +54,7 @@ async function prepareUploadBuffer(fileBase64) {
     ? fileBase64
     : `data:image/jpeg;base64,${fileBase64}`;
 
-  const base64Data = dataUri.split(',')[1];
-  let buffer = Buffer.from(base64Data, 'base64');
-
-  if (buffer.length > 9 * 1024 * 1024) {
-    buffer = await sharp(buffer)
-      .rotate()
-      .resize({ width: 4000, height: 4000, fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 85, mozjpeg: true })
-      .toBuffer();
-  }
-
-  return `data:image/jpeg;base64,${buffer.toString('base64')}`;
+  return dataUri;
 }
 
 export async function uploadPortfolioImage(fileBase64, category) {
