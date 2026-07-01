@@ -20,7 +20,7 @@ const PRESET_NAME = process.env.VITE_CLOUDINARY_UPLOAD_PRESET || '9teen_portfoli
 
 async function ensureUploadPreset() {
   try {
-    await cloudinary.api.upload_presets(PRESET_NAME);
+    await cloudinary.api.upload_preset(PRESET_NAME);
     console.log(`[Setup] Upload preset "${PRESET_NAME}" already exists.`);
   } catch {
     await cloudinary.api.create_upload_preset({

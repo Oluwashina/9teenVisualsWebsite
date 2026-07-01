@@ -1,7 +1,11 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { listPortfolioImages, deletePortfolioImage } from './cloudinary-api.js';
+import {
+  listPortfolioImages,
+  deletePortfolioImage,
+  uploadPortfolioImage,
+} from './cloudinary-api.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 dotenv.config({ path: path.join(root, '.env') });
@@ -13,13 +17,28 @@ function sendJson(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(body));
+      } catch (err) {
+        reject(new Error('Invalid JSON body'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
 function handlePortfolioApi(req, res) {
   if (!req.url?.startsWith('/api/portfolio')) return false;
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     res.end();
     return true;
@@ -35,20 +54,31 @@ function handlePortfolioApi(req, res) {
     return true;
   }
 
+  if (req.method === 'POST') {
+    readJsonBody(req)
+      .then(async ({ category, file }) => {
+        if (!category || !file) throw new Error('category and file are required');
+        const image = await uploadPortfolioImage(file, category);
+        sendJson(res, 200, { image });
+      })
+      .catch((err) => {
+        console.error('[API] Upload error:', err.message);
+        sendJson(res, 500, { error: err.message });
+      });
+    return true;
+  }
+
   if (req.method === 'DELETE') {
-    let body = '';
-    req.on('data', (chunk) => { body += chunk.toString(); });
-    req.on('end', async () => {
-      try {
-        const { publicId } = JSON.parse(body);
+    readJsonBody(req)
+      .then(async ({ publicId }) => {
         if (!publicId) throw new Error('publicId is required');
         await deletePortfolioImage(publicId);
         sendJson(res, 200, { success: true });
-      } catch (err) {
+      })
+      .catch((err) => {
         console.error('[API] Delete error:', err.message);
         sendJson(res, 500, { error: err.message });
-      }
-    });
+      });
     return true;
   }
 

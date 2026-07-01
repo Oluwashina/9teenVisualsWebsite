@@ -1,5 +1,9 @@
 import dotenv from 'dotenv';
-import { listPortfolioImages, deletePortfolioImage } from '../../server/cloudinary-api.js';
+import {
+  listPortfolioImages,
+  deletePortfolioImage,
+  uploadPortfolioImage,
+} from '../../server/cloudinary-api.js';
 
 dotenv.config();
 
@@ -10,13 +14,28 @@ const headers = {
 
 export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
+    return {
+      statusCode: 204,
+      headers: {
+        ...headers,
+        'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+      body: '',
+    };
   }
 
   try {
     if (event.httpMethod === 'GET') {
       const images = await listPortfolioImages();
       return { statusCode: 200, headers, body: JSON.stringify({ images }) };
+    }
+
+    if (event.httpMethod === 'POST') {
+      const { category, file } = JSON.parse(event.body || '{}');
+      if (!category || !file) throw new Error('category and file are required');
+      const image = await uploadPortfolioImage(file, category);
+      return { statusCode: 200, headers, body: JSON.stringify({ image }) };
     }
 
     if (event.httpMethod === 'DELETE') {

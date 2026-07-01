@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "migrate:cloudinary": "node scripts/migrate-to-cloudinary.js",
-    "retry:large": "node scripts/retry-large-uploads.js"
+    "retry:large": "node scripts/retry-large-uploads.js",
+    "setup:cloudinary": "node scripts/setup-cloudinary-preset.js"
   },
   "devDependencies": {
     "vite": "^7.2.4"

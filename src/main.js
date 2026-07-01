@@ -165,8 +165,14 @@ function renderPricingCards(category) {
 
 window.app = app;
 
-const CLOUDINARY_CLOUD = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const CLOUDINARY_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.readAsDataURL(file);
+  });
+}
 
 async function fetchPortfolio() {
   const response = await fetch('/api/portfolio');
@@ -194,27 +200,20 @@ async function deletePortfolioImage(publicId) {
 }
 
 async function uploadToCloudinary(file, category) {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', CLOUDINARY_PRESET);
-  formData.append('folder', `9teen-visuals/${category}`);
+  const dataUrl = await readFileAsDataUrl(file);
 
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
-    { method: 'POST', body: formData }
-  );
+  const response = await fetch('/api/portfolio', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ category, file: dataUrl }),
+  });
 
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data.error?.message || 'Cloudinary upload failed');
+    throw new Error(data.error || 'Upload failed');
   }
 
-  return {
-    id: data.public_id.split('/').pop(),
-    publicId: data.public_id,
-    url: data.secure_url,
-    category,
-  };
+  return data.image;
 }
 
 function renderAdminStats(images) {
@@ -286,8 +285,12 @@ function bindAdminEvents(container) {
       await uploadToCloudinary(file, categorySelect.value);
       await app.loadPortfolio();
       renderAdmin(container);
-      statusDiv.textContent = `Success! Image added to ${categorySelect.value} gallery.`;
-      statusDiv.style.color = '#44ff44';
+
+      const status = container.querySelector('#upload-status');
+      if (status) {
+        status.textContent = `Success! Image added to ${categorySelect.value} gallery.`;
+        status.style.color = '#44ff44';
+      }
       fileInput.value = '';
     } catch (err) {
       statusDiv.textContent = 'Upload failed: ' + err.message;
